@@ -7,6 +7,7 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 #include <sys/types.h>
+#include <time.h>
 
 #define MAX_PERSONS 120
 #define SHM_KEY 1234 //klucz pamieci
@@ -25,9 +26,14 @@ void clean();
 void sig_handler(int sig);
 void start_shmemory(); //tworzenie lub dodawanie do pamieci wspoldzielonej
 void start_sem(); //tworzenie i init semaforow
+int work_time(int start, int stop);
 
 int main() {
+    pid_t pid_kasjer, pid_pracownik1, pid_pracownik2;
+
     signal(SIGINT, sig_handler); // przechwytywanie ctrl+C do czyszczenia
+    signal(SIGUSR1, sig_handler); // sig zatrzymanie kolejki
+    signal(SIGUSR2, sig_handler); // sig wznowienie kolejki
 
     start_shmemory();
     start_sem(); //init pamieci i semaforow
@@ -37,7 +43,46 @@ int main() {
 
     printf("Stacja uruchomiona. Ctrl+C, aby zakonczyc.\n");
 
+    pid_kasjer = fork();
+    if (pid_kasjer == 0) {
+        execl("./kasjer", "kasjer", NULL);
+        perror("nie udalo sie uruchomic proces kasjer");
+        exit(EXIT_FAILURE);
+    }
+
+    pid_pracownik1 = fork();
+    if (pid_pracownik1 == 0) {
+        execl("./pracwonik1", "pracownik1", NULL);
+        perror("nie udalo sie uruchomic procesu pracownik1");
+        exit(EXIT_FAILURE);
+    }
+
+    pid_pracownik2 = fork();
+    if (pid_pracownik2 == 0) {
+        execl("./pracownik2", "pracownik2", NULL);
+        perror("nie udalo sie uruchomic procesu pracownik2");
+        exit(EXIT_FAILURE);
+    }
+
     while (1) { // main loop
+        // if (!work_time(8, 18)) {//sprawdznie godzin
+        //     printf("kolej zamknieta\n");
+        //     sleep(60);
+        //     continue;
+        // }
+        while (1) {
+            pid_t pid_narciarz = fork();
+            if (pid_narciarz == 0) {
+                execl("./narciarz", "narciarz", NULL);
+                perror("Nie udało się uruchomić procesu narciarza");
+                exit(EXIT_FAILURE);
+            }
+            sleep(rand() % 3 + 1);
+        }
+        if (shm_ptr -> num_people > MAX_PERSONS) {//sprawdzenie ilosci osob
+            printf("przepelnainie kolejki %d osob\n", shm_ptr->num_people);
+            shm_ptr -> num_people = MAX_PERSONS;
+        }
         printf("osoby na peronie: %d, status kolejki: %s\n", 
                 shm_ptr->num_people, shm_ptr->lift_status ? "dziala" : "zatrzymana");
         sleep(5);
@@ -78,6 +123,12 @@ void sig_handler(int sig) {
         printf("zatrzymano, czysczenie ");
         clean();
         exit(0);
+    } else if (sig == SIGUSR1) {
+        printf("awaryjne zatrzymanie kolejki\n");
+        shm_ptr -> lift_status = 0;
+    } else if (sig == SIGUSR2) {
+        printf("wznowienie kolejki\n");
+        shm_ptr -> lift_status = 1; 
     }
 }
 
@@ -91,4 +142,12 @@ void clean() {
     if (semctl(sem_id, 0, IPC_RMID) == -1) {
         perror("nie mozna usunac semaforow");
     }
+}
+
+int work_time(int start, int stop) {
+    time_t now = time(NULL);
+    struct tm *local_time = localtime(&now);
+
+    int curr_hour = local_time -> tm_hour;
+    return curr_hour >= start && curr_hour < stop;
 }
