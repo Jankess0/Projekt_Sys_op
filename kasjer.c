@@ -30,13 +30,28 @@ int main()
 
     while (1) {
         int years = rand() % 80;
-        const char *type = (rand() % 2 == 0) ? "czasowy" : "dzienny";
-
+        //const char *type = (rand() % 2 == 0) ? "czasowy" : "dzienny";
+        const char *type;
+        int num = rand() % 4 + 1;
+        switch(num){
+            case 1:
+                type = "czasowy2h";
+                break;
+            case 2:
+                type = "czasowy4h";
+                break;
+            case 3:
+                type = "czasowy6h";
+                break;
+            case 4:
+                type = "dzienny";
+                break; 
+        }
         sell_ticket(years, type);
 
-        if (shm_ptr -> num_tickets % 10 == 0 && shm_ptr -> num_tickets > 0) {
-            raport();
-        }
+        // if (shm_ptr -> num_tickets % 10 == 0 && shm_ptr -> num_tickets > 0) {
+        //     raport();
+        // }
         //printf("koniec raportu\n");
         sleep(rand() % 3 + 1);
     }

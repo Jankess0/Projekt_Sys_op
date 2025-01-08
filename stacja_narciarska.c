@@ -10,10 +10,6 @@
 #include <time.h>
 #include "shared.h"
 
-#define SHM_KEY 1234 //klucz pamieci
-#define SEM_KEY 5678 //klucz semafor
-
-
 int shm_id; //id pamieci wspoldzielonej
 SharedData *shm_ptr; //wskaznik na pamiec
 int sem_id; //id semaforow
@@ -45,21 +41,22 @@ int main() {
         perror("nie udalo sie uruchomic proces kasjer");
         exit(EXIT_FAILURE);
     }
-
-    // pid_pracownik1 = fork();
-    // if (pid_pracownik1 == 0) {
-    //     execl("./pracwonik1", "pracownik1", NULL);
-    //     perror("nie udalo sie uruchomic procesu pracownik1");
-    //     exit(EXIT_FAILURE);
-    // }
-
-    // pid_pracownik2 = fork();
-    // if (pid_pracownik2 == 0) {
-    //     execl("./pracownik2", "pracownik2", NULL);
-    //     perror("nie udalo sie uruchomic procesu pracownik2");
-    //     exit(EXIT_FAILURE);
-    // }
-
+    printf("Kasjet PID:%d\n", pid_kasjer);
+    pid_pracownik1 = fork();
+    if (pid_pracownik1 == 0) {
+        execl("./pracownik1", "pracownik1", NULL);
+        perror("nie udalo sie uruchomic procesu pracownik1");
+        exit(EXIT_FAILURE);
+    }
+    printf("Pracownik1 PID:%d\n", pid_pracownik1);
+    pid_pracownik2 = fork();
+    if (pid_pracownik2 == 0) {
+        execl("./pracownik2", "pracownik2", NULL);
+        perror("nie udalo sie uruchomic procesu pracownik2");
+        exit(EXIT_FAILURE);
+    }
+    printf("Pracownik2 PID:%d\n", pid_pracownik2);
+    sleep(5);
     while (1) { // main loop
         // if (!work_time(8, 18)) {//sprawdznie godzin
         //     printf("kolej zamknieta\n");
