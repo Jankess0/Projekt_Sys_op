@@ -4,6 +4,7 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/sem.h>
+#include <sys/msg.h>
 #include <time.h>
 #include <pthread.h>
 #include <signal.h>
@@ -16,14 +17,8 @@ SharedData *shm_ptr;
 void start_shmemory();
 void wait_sem();
 void signal_sem();
-void* child_behavior(void* arg);
 int entry_queue(FifoQueue *queue, FifoEntry entry);
 void handle_signal(int sig);
-
-typedef struct {
-    int ticket_id;
-    int is_child;
-} TicketData;
 
 int main() {
     srand(time(NULL) + getpid());
@@ -34,21 +29,21 @@ int main() {
     int attempts = 0;
     int temp;
 
-    while (attempts < 10) { // Maksymalnie 10 prób na wybór biletu
+    while (attempts < 10) { // maks 10 prob na wylosowanie biletu
         if (shm_ptr->num_tickets <= 0) {
             printf("Narciarz %d: Brak dostępnych biletów.\n", getpid());
             signal_sem();
             return 0;
         }
 
-        ticket_index = rand() % shm_ptr->num_tickets;
+        ticket_index = rand() % shm_ptr->num_tickets; // losuje id karnetu
 
-        // Sprawdzamy, czy bilet jest dostępny i spełnia wymagania
+        // sprawdzamy czy narciarz jest dorosly
         if (!shm_ptr->tickets[ticket_index].is_in_use && shm_ptr->tickets[ticket_index].age >= 8) {
-            shm_ptr->tickets[ticket_index].is_in_use = 1; // Oznacz bilet jako zajęty
-            shm_ptr->tickets[ticket_index].num_uses++;
-            printf("Narciarz %d: Wybrano bilet ID %d, wiek: %d\n", getpid(),
-                   shm_ptr->tickets[ticket_index].id, shm_ptr->tickets[ticket_index].age);
+            shm_ptr->tickets[ticket_index].is_in_use = 1; // oznaczamy bilet jako zajety
+            shm_ptr->tickets[ticket_index].num_uses++; // zwiekszamy liczbe uzyc
+        //  printf("Narciarz %d: Wybrano bilet ID %d, wiek: %d\n", getpid(),
+        //            shm_ptr->tickets[ticket_index].id, shm_ptr->tickets[ticket_index].age);
             break;
         }
 
@@ -60,26 +55,28 @@ int main() {
         signal_sem();
         return 0;
     }
-    int children = rand() % 3; // Dorosły może zabrać maksymalnie 2 dzieci
+    int children = rand() % 3; // dorosly moze zabrac maksymalnie 2 dzieci
     if (children == 3) children = 2;
 
     temp = children;
 
     for (int i = 0; i < temp; i++) {
         int child_ticket_index = -1;
+        int child_ticket_id[2];
         attempts = 0;
 
         while (attempts < 30) {
             if (shm_ptr->num_tickets > 0) {
                 child_ticket_index = rand() % shm_ptr->num_tickets;
 
-                if (!shm_ptr->tickets[child_ticket_index].is_in_use &&
+                if (!shm_ptr->tickets[child_ticket_index].is_in_use && // sprawdzamy czy bilet jest dla dziecka
                     shm_ptr->tickets[child_ticket_index].age < 8) {
                     shm_ptr->tickets[child_ticket_index].is_in_use = 1; // Oznacz bilet jako zajęty
-                    shm_ptr->tickets[child_ticket_index].num_uses++;
-                    printf("Narciarz %d: Dziecko %d otrzymało bilet ID %d, wiek: %d\n",
-                        getpid(), i + 1, shm_ptr->tickets[child_ticket_index].id,
-                        shm_ptr->tickets[child_ticket_index].age);
+                    shm_ptr->tickets[child_ticket_index].num_uses++; // zwiekszamy liczbe uzyc
+                    // printf("Narciarz %d: Dziecko %d otrzymało bilet ID %d, wiek: %d\n",
+                    //     getpid(), i + 1, shm_ptr->tickets[child_ticket_index].id,
+                    //     shm_ptr->tickets[child_ticket_index].age);
+                    child_ticket_id[i] = child_ticket_index;
                     break;
                 }
             }
@@ -93,14 +90,15 @@ int main() {
             //sleep(1);
         }
     }
-
-    shm_ptr->num_people_lower += 1 + children;
+   
+    shm_ptr->num_people_lower += 1 + children; // wchodzi na stacje zwiekszamy ilosc osb na peronie
 
     FifoEntry entry;
     entry.ticket_id = shm_ptr->tickets[ticket_index].id;
     entry.num_children = children;
+    entry.pid = getpid();
 
-    if (entry_queue(&shm_ptr->fifo_queue, entry) == 0) {
+    if (entry_queue(&shm_ptr->fifo_queue, entry) == 0) { // dodajemy narciarza do kolejki fifo
         printf("Narciarz %d: Dodano do kolejki z %d dziecmi.\n", entry.ticket_id, entry.num_children);
     } else {
         printf("Narciarz %d: Kolejka jest pelna!\n", entry.ticket_id);
@@ -108,17 +106,23 @@ int main() {
 
     signal_sem();
     
-    printf("Narciarz %d: Czekam na sygnał od pracownika...\n", getpid());
+    //printf("Narciarz %d: Czekam na sygnał od pracownika...\n", getpid());
     pause();
-    
+
+    sleep(rand() % 3 + 1); // Symulacja zjazdu
+    wait_sem();
+    shm_ptr->tickets[ticket_index].is_in_use = 0;
+    for (int i = 0; i < children; i++) {
+        shm_ptr->tickets[i].is_in_use = 0;
+    }
+    printf("Narciarz %d: Zakończyłem zjazd. Kończę proces.\n", getpid());
+    signal_sem();
     return 0;
 }
 void handle_signal(int sig) {
     if (sig == SIGUSR1) {
         printf("Narciarz %d: Otrzymałem sygnał do rozpoczęcia zjazdu.\n", getpid());
-        sleep(rand() % 3 + 1); // Symulacja zjazdu
-        printf("Narciarz %d: Zakończyłem zjazd. Kończę proces.\n", getpid());
-        exit(0);
+       
     }
 }
 int entry_queue(FifoQueue *queue, FifoEntry entry) {

@@ -3,14 +3,16 @@
 
 #define MAX_PERSONS 120
 #define MAX_TICKETS 100
-#define SHM_KEY 1235
+#define SHM_KEY 12355
 #define SEM_KEY 5678
+#define MSG_KEY 7777
 #define MAX_CHAIRS 40
 #define MAX_QUEUE_SIZE 100
 
 typedef struct {
     int ticket_id;     
-    int num_children;  
+    int num_children;
+    int pid;
 } FifoEntry;
 
 typedef struct {
@@ -19,8 +21,7 @@ typedef struct {
     FifoEntry queue[MAX_QUEUE_SIZE]; 
 } FifoQueue;
 
-typedef struct 
-{
+typedef struct {
     int id;
     char type[10];
     int discount;
@@ -31,10 +32,14 @@ typedef struct
 
 } Ticket;
 
-typedef struct
-{
+typedef struct {
+    long msg_type;
+    int pid;
+    int total_people;
+} Message;
+
+typedef struct {
     int num_people_lower;
-    int num_people_upper;
     int num_chairs;
     int ready_lower;      
     int ready_upper;

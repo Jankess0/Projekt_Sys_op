@@ -13,7 +13,6 @@ int sem_id;
 SharedData *shm_ptr;
 
 void sell_ticket(int years, const char *type);
-void raport();
 void start_shmemory();
 void wait_sem();
 void signal_sem();
@@ -21,12 +20,6 @@ void signal_sem();
 int main() {
     srand(time(NULL));
     start_shmemory();
-
-    wait_sem();
-    if (shm_ptr->num_tickets == 0) {
-        shm_ptr->num_tickets = 0;
-    }
-    signal_sem();
 
     printf("Kasjer uruchomiony\n");
 
@@ -50,16 +43,6 @@ int main() {
         }
 
         sell_ticket(years, type);
-
-        // wait_sem();
-        // if (shm_ptr->num_tickets % 10 == 0 && shm_ptr->num_tickets > 0) {
-        //     signal_sem(); // Odblokowanie przed wywołaniem raportu
-        //     raport();
-        // } else {
-        //     signal_sem();
-        // }
-        //usleep(50000);
-        // sleep(rand() % 3 + 1);
     }
     return 0;
 }
@@ -75,35 +58,16 @@ void sell_ticket(int years, const char *type) {
     }
 
     Ticket *new_ticket = &shm_ptr->tickets[shm_ptr->num_tickets];
-    new_ticket->id = shm_ptr->num_tickets + 1;
+    new_ticket->id = shm_ptr->num_tickets + 1; // utworzenie id biletu
     strncpy(new_ticket->type, type, sizeof(new_ticket->type) - 1);
     new_ticket->type[sizeof(new_ticket->type) - 1] = '\0';
-    new_ticket->discount = (years < 12 || years > 65) ? 1 : 0;
-    new_ticket->bought_time = time(NULL);
-    new_ticket->age = years;
-    new_ticket->num_uses = 0;
+    new_ticket->discount = (years < 12 || years > 65) ? 1 : 0; // losowanie wieku i ustalenie znikzi
+    new_ticket->bought_time = time(NULL); // czas kupna
+    new_ticket->age = years; // przypisanie wieku
+    new_ticket->num_uses = 0; // ilosc uzyc
 
     shm_ptr->num_tickets++;
 
-    // printf("Sprzedano karnet ID: %d, Typ: %s, Wiek: %d, Zniżka: %s, Czas kupna: %s\n",
-    //        new_ticket->id, new_ticket->type, new_ticket->age,
-    //        new_ticket->discount ? "tak" : "nie",
-    //        ctime(&new_ticket->bought_time));
-
-    signal_sem();
-}
-
-void raport() {
-    wait_sem();
-    printf("Raport sprzedaży:\n");
-    printf("Liczba sprzedanych biletów: %d\n", shm_ptr->num_tickets);
-
-    for (int i = 0; i < shm_ptr->num_tickets; i++) {
-        printf("Karnet ID: %d; Typ: %s; Wiek: %d; Zniżka: %s; Czas kupna: %s\n",
-               shm_ptr->tickets[i].id, shm_ptr->tickets[i].type, shm_ptr->tickets[i].age,
-               shm_ptr->tickets[i].discount ? "tak" : "nie",
-               ctime(&shm_ptr->tickets[i].bought_time));
-    }
     signal_sem();
 }
 

@@ -6,22 +6,25 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/sem.h>
+#include <sys/msg.h>
 #include <sys/types.h>
 #include <time.h>
 #include "shared.h"
 
-int shm_id; // ID pamieci wspołdzielonej
-int sem_id; // ID semaforow
-SharedData *shm_ptr; // Wskaźnik na pamiec
+int shm_id; 
+int sem_id; 
+int msg_id;
+SharedData *shm_ptr; 
 
 void clean(); 
-void sig_handler(int sig);
-void start_shmemory(); // Tworzenie lub dodawanie do pamieci 
-void start_sem(); // Tworzenie i inicjalizacja semaforow
+void sig_handler(int sig); 
+void start_shmemory(); 
+void start_sem(); 
 int work_time(int start, int stop);
 void raport();
-void wait_sem();
-void signal_sem();
+void wait_sem(); // operacja obnizenia semafora
+void signal_sem(); // operacja podniesieni semafora
+void start_msg(); 
 
 int main() {
     pid_t pid_kasjer, pid_pracownik1, pid_pracownik2;
@@ -30,11 +33,12 @@ int main() {
     signal(SIGUSR1, sig_handler); // Zatrzymanie 
     signal(SIGUSR2, sig_handler); // Wznowienie
 
+    // inizjalizacja ipcs
     start_shmemory();
     start_sem();
+    start_msg();
 
-    shm_ptr->num_people_lower = 0; 
-    shm_ptr->num_people_upper = 0;  
+    shm_ptr->num_people_lower = 0;  
     shm_ptr->num_chairs = 0;       // Ustawienie wartosci poczatkwoych
     shm_ptr->lift_status = 1;       
     shm_ptr->num_tickets = 0;     
@@ -72,19 +76,22 @@ int main() {
         //     continue;
         // }
 
+        // sprawdzamy status koleji
         wait_sem();
-        printf("Status kolejki: %s, Zajęte krzesełka: %d/%d, Liczba osób dolny: %d, górny: %d\n",
+        printf("Status kolejki: %s, Zajęte krzesełka: %d/%d, Liczba osób na peronie: %d\n",
                shm_ptr->lift_status ? "Działa" : "Zatrzymana",
                shm_ptr->num_chairs, MAX_CHAIRS,
-               shm_ptr->num_people_lower, shm_ptr->num_people_upper);
+               shm_ptr->num_people_lower);
 
-        if (!shm_ptr->lift_status && shm_ptr->num_chairs < MAX_CHAIRS) {
+        // jezeli kolej zatrzymana sprawdzamy warunek i wznawiamy
+        if (!shm_ptr->lift_status && shm_ptr->num_chairs < MAX_CHAIRS - 5) {
             printf("Stacja: Wszystkie warunki spełnione, wznawiam kolejkę.\n");
             shm_ptr->lift_status = 1;
             kill(pid_pracownik1, SIGUSR2);
             kill(pid_pracownik2, SIGUSR2);
         }
         signal_sem();
+
         pid_t pid_narciarz = fork();
         if (pid_narciarz == 0) {
             execl("./narciarz", "narciarz", NULL);
@@ -92,7 +99,7 @@ int main() {
             exit(EXIT_FAILURE);
         }
         printf("Narciarz PID: %d\n", pid_narciarz);
-        usleep(200000);
+        usleep(1000000);
         //sleep(rand() % 3 + 1); // 
     }
     return 0;
@@ -124,6 +131,14 @@ void start_sem() {
     }
 }
 
+void start_msg() {
+    msg_id = msgget(MSG_KEY, IPC_CREAT | 0666);
+    if (msg_id == -1) {
+        perror("Nie udalo sie utworzyc kolejki komunikatow");
+        exit(EXIT_FAILURE);
+    }
+}
+
 void sig_handler(int sig) {
     if (sig == SIGINT) {
         printf("Zatrzymano. Czyszczenie pamięci.\n");
@@ -149,6 +164,9 @@ void clean() {
     if (semctl(sem_id, 0, IPC_RMID) == -1) {
         perror("Nie można usunąć semaforów");
     }
+    if (msgctl(msg_id, IPC_RMID, NULL) == -1) {
+        perror("Nie mozna usunac kolejki komunikatow");
+    }
 }
 
 int work_time(int start, int stop) {
@@ -162,8 +180,7 @@ int work_time(int start, int stop) {
 void raport() {
     wait_sem();
     printf("Raport sprzedaży i użytkowania:\n");
-    printf("Liczba osób na peronie dolnym: %d\n", shm_ptr->num_people_lower);
-    printf("Liczba osób na peronie górnym: %d\n", shm_ptr->num_people_upper);
+    printf("Liczba osób na peronie: %d\n", shm_ptr->num_people_lower);
     printf("Liczba zajętych krzesełek: %d/%d\n", shm_ptr->num_chairs, MAX_CHAIRS);
     printf("Liczba sprzedanych biletów: %d\n", shm_ptr->num_tickets);
 

@@ -5,16 +5,20 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/sem.h>
+#include <sys/msg.h>
 #include <pthread.h>
 #include "shared.h"
 
 int shm_id;
 int sem_id;
+int msg_id;
 SharedData *shm_ptr;
 
 void start_shmemory();
 void wait_sem();
 void signal_sem();
+void start_msg();
+void send_msg(int msg_id, int pid, int total_people);
 void* monitor_peron_dolny(void *arg);
 int dec_queue(FifoQueue *queue, FifoEntry *entry);
 
@@ -24,10 +28,11 @@ int main() {
     signal(SIGUSR2, SIG_IGN);
 
     start_shmemory();
+    start_msg();
 
     printf("Pracownik1 uruchomiony, monitoruje dolna stacje.\n");
     pthread_t monitor_thread;
-    if (pthread_create(&monitor_thread, NULL, monitor_peron_dolny, NULL) != 0) {
+    if (pthread_create(&monitor_thread, NULL, monitor_peron_dolny, NULL) != 0) { // watek monitorujacy stacje
         perror("Nie udało się utworzyć wątku monitorującego peron dolny");
         exit(EXIT_FAILURE);
     }
@@ -51,23 +56,14 @@ int main() {
                 continue;
             }
 
-            // Umieszczanie narciarza na krzesełkach
-            shm_ptr->num_chairs += total_people;
+            // Umieszczanie narciarza na krzeselkach
+            shm_ptr->num_chairs += 1;
             printf("Pracownik: Narciarz %d zajmuje %d miejsca. Zajęte miejsca: %d/%d\n",
                    entry.ticket_id, total_people, shm_ptr->num_chairs, MAX_CHAIRS * 3);
-
+            send_msg(msg_id, entry.pid, total_people);
+            shm_ptr->num_people_lower -= total_people;
             signal_sem();
 
-            // Symulacja jazdy
-            // sleep(rand() % 3 + 1);
-            usleep(500000);
-            wait_sem();
-            // Zwolnienie miejsc na krzesełkach
-            shm_ptr->num_chairs -= total_people;
-            
-            printf("Pracownik: Narciarz %d zakończył jazdę. Zwolniono %d miejsc. Zajęte miejsca: %d/%d\n",
-                   entry.ticket_id, total_people, shm_ptr->num_chairs, MAX_CHAIRS * 3);
-            kill(entry.ticket_id, SIGUSR1);
             
         } else {
             //printf("Pracownik: Kolejka jest pusta. Czekam na narciarzy...\n");
@@ -120,6 +116,26 @@ void signal_sem() {
         perror("Nie można odblokować semafora");
         exit(EXIT_FAILURE);
     }
+}
+
+void start_msg() {
+    msg_id = msgget(MSG_KEY, IPC_CREAT | 0666);
+    if (msg_id == -1) {
+        perror("Nie udalo sie utworzyc kolejki komunikatow");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void send_msg(int msg_id, int pid, int total_people) {
+    Message msg;
+    msg.msg_type = 1;
+    msg.pid = pid;
+    msg.total_people = total_people;
+
+    if (msgsnd(msg_id, &msg, sizeof(msg) - sizeof(long), 0) == -1) {
+        perror("Nie udalo sie wyslac komunikatu");
+    }
+    
 }
 
 void* monitor_peron_dolny(void *arg) {
