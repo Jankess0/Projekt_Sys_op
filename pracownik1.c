@@ -14,6 +14,7 @@ int sem_id;
 int msg_id;
 SharedData *shm_ptr;
 
+
 void start_shmemory();
 void wait_sem();
 void signal_sem();
@@ -38,6 +39,10 @@ int main() {
     }
     while (1) {
         wait_sem();
+        if (shm_ptr -> lift_status == 0) {
+            usleep(1000000);
+            continue;
+        }
 
         FifoEntry entry;
 
@@ -70,7 +75,7 @@ int main() {
         }
         
         signal_sem();
-        //usleep(500000);
+        usleep(500000);
     }
     return 0;
 }
@@ -141,7 +146,7 @@ void send_msg(int msg_id, int pid, int total_people) {
 void* monitor_peron_dolny(void *arg) {
     while (1) {
         wait_sem();
-        if (shm_ptr->num_people_lower > MAX_PERSONS) {
+        if (shm_ptr->num_chairs >= MAX_CHAIRS) {
             printf("Pracownik1: Przepełnienie peronu dolnego! Zatrzymuję kolejkę.\n");
             shm_ptr->lift_status = 0;
             kill(getppid(), SIGUSR1); // Wysyłanie sygnału zatrzymania do stacji centralnej
@@ -151,6 +156,6 @@ void* monitor_peron_dolny(void *arg) {
             kill(getppid(), SIGUSR2);
         }
         signal_sem();
-        sleep(1); 
+        usleep(100000); 
     }
 }

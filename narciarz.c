@@ -59,10 +59,9 @@ int main() {
     if (children == 3) children = 2;
 
     temp = children;
-
+    int child_ticket_id[children];
     for (int i = 0; i < temp; i++) {
         int child_ticket_index = -1;
-        int child_ticket_id[2];
         attempts = 0;
 
         while (attempts < 30) {
@@ -108,12 +107,12 @@ int main() {
     
     //printf("Narciarz %d: Czekam na sygnał od pracownika...\n", getpid());
     pause();
-
-    sleep(rand() % 3 + 1); // Symulacja zjazdu
+    sleep(1);
+    //sleep(rand() % 3 + 1); // Symulacja zjazdu
     wait_sem();
     shm_ptr->tickets[ticket_index].is_in_use = 0;
     for (int i = 0; i < children; i++) {
-        shm_ptr->tickets[i].is_in_use = 0;
+        shm_ptr->tickets[child_ticket_id[i]].is_in_use = 0;
     }
     printf("Narciarz %d: Zakończyłem zjazd. Kończę proces.\n", getpid());
     signal_sem();

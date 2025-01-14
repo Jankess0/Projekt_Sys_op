@@ -84,14 +84,17 @@ int main() {
                shm_ptr->num_people_lower);
 
         // jezeli kolej zatrzymana sprawdzamy warunek i wznawiamy
-        if (!shm_ptr->lift_status && shm_ptr->num_chairs < MAX_CHAIRS - 5) {
-            printf("Stacja: Wszystkie warunki spełnione, wznawiam kolejkę.\n");
-            shm_ptr->lift_status = 1;
-            kill(pid_pracownik1, SIGUSR2);
-            kill(pid_pracownik2, SIGUSR2);
-        }
+        // if (!shm_ptr->lift_status && shm_ptr->num_chairs < MAX_CHAIRS - 5) {
+        //     printf("Stacja: Wszystkie warunki spełnione, wznawiam kolejkę.\n");
+        //     shm_ptr->lift_status = 1;
+          //  kill(pid_pracownik1, SIGUSR2);
+           // kill(pid_pracownik2, SIGUSR2);
+        //}
         signal_sem();
-
+        if (shm_ptr->num_people_lower >= MAX_PERSONS) {
+            sleep(1);
+            continue;
+        }
         pid_t pid_narciarz = fork();
         if (pid_narciarz == 0) {
             execl("./narciarz", "narciarz", NULL);
@@ -99,7 +102,8 @@ int main() {
             exit(EXIT_FAILURE);
         }
         printf("Narciarz PID: %d\n", pid_narciarz);
-        usleep(1000000);
+        sleep(1);
+        //usleep(1000000);
         //sleep(rand() % 3 + 1); // 
     }
     return 0;
@@ -147,10 +151,8 @@ void sig_handler(int sig) {
         exit(0);
     } else if (sig == SIGUSR1) {
         printf("Awaryjne zatrzymanie kolejki!\n");
-        shm_ptr->lift_status = 0;
     } else if (sig == SIGUSR2) {
         printf("Wznowienie pracy kolejki przez stację centralną.\n");
-        shm_ptr->lift_status = 1;
     }
 }
 

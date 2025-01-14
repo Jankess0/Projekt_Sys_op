@@ -36,7 +36,9 @@ int main() {
     }
 
     while (1) {
+        
         receive_msg(msg_id);
+        
     }
 
     return 0;
@@ -92,9 +94,10 @@ void receive_msg(int msg_id) {
         perror("Nie udalo sie odebrac komunikatu");
         exit(EXIT_FAILURE);
     }
+    sleep(3);
+    wait_sem();
     shm_ptr->num_chairs -= msg.total_people;
-    sleep(5);
-
+    signal_sem();
     kill(msg.pid, SIGUSR1);
 
 }
@@ -102,17 +105,17 @@ void receive_msg(int msg_id) {
 void* monitor_peron_gorny(void *arg) {
     while (1) {
         wait_sem();
-        if (shm_ptr->num_chairs >= MAX_CHAIRS) {
-            printf("Pracownik2: Przepelnienie peronu górnego lub brak dostępnych krzesełek! Zatrzymuję kolejkę.\n");
-            shm_ptr->lift_status = 0;
-            kill(getppid(), SIGUSR1); 
-            sleep(1);
-        } else if (shm_ptr->lift_status == 0 && shm_ptr->num_chairs < MAX_CHAIRS - 5) {
+        // if (shm_ptr->num_chairs >= MAX_CHAIRS) {
+        //     printf("Pracownik2: Przepelnienie peronu górnego lub brak dostępnych krzesełek! Zatrzymuję kolejkę.\n");
+        //     shm_ptr->lift_status = 0;
+        //     kill(getppid(), SIGUSR1); 
+        //     sleep(1);
+        if (shm_ptr->lift_status == 0 && shm_ptr->num_chairs < MAX_CHAIRS) {
             printf("Pracownik2: Warunki spełnione. Wznowienie pracy kolejki.\n");
             shm_ptr->lift_status = 1;
             kill(getppid(), SIGUSR2);
         }
         signal_sem();
-        usleep(100000); 
+        sleep(1); 
     }
 }
